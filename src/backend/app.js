@@ -23,6 +23,7 @@ mongo.MongoClient.connect(url, function(err, database) {
 
 // Serve static files from the frontend folder
 app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.json())
 
 // API routes
 app.get('/api/hello', (req, res) => {
@@ -31,8 +32,10 @@ app.get('/api/hello', (req, res) => {
 
 // Login
 app.post('/api/login', (req, res) => {
+  console.log(req.body)
   var username = req.body.username
   var password = req.body.password
+  console.log("Login attempt by user " + username)
   db.collection("users").findOne({username}, function(err, result) {
     if (err) {
       res.sendStatus(400)
