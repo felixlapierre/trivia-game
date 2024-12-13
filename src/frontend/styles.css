@@ -16,5 +16,7 @@
     width: 100%;
     margin-top: -1em;
     z-index: 999;
+    text-align: center;
+    color: white;
     background-color: aquamarine;
 }

@@ -2,24 +2,18 @@
 const express = require('express');
 const jwt = require('jsonwebtoken')
 const path = require('path');
-const mongo = require('mongodb')
+const MongoClient = require('mongodb').MongoClient
 
 // Environment variables
 const dotenv = require('dotenv')
 dotenv.config()
-var secret_token = process.env.TOKEN_SECRET
 
 // Initialize the Express app
 const app = express();
 
 // Connect to MongoDB
-const url = "mongodb://localhost:27017/trivia"
-var db = null
-mongo.MongoClient.connect(url, function(err, database) {
-  if (err) throw err;
-  console.log("Database created")
-  db = database
-})
+const uri = "mongodb://localhost:27017/trivia"
+const client = new MongoClient(uri)
 
 // Serve static files from the frontend folder
 app.use(express.static(path.join(__dirname, '../frontend')));
@@ -32,45 +26,153 @@ app.get('/api/hello', (req, res) => {
 
 // Login
 app.post('/api/login', (req, res) => {
-  console.log(req.body)
   var username = req.body.username
   var password = req.body.password
   console.log("Login attempt by user " + username)
-  db.collection("users").findOne({username}, function(err, result) {
-    if (err) {
+
+  const database = client.db('trivia')
+  const users = database.collection('users')
+
+  const query = { username: username}
+  users.findOne(query)
+  .catch((err) => {
+    console.log(err)
+    console.log("User not found for username " + username)
+    res.sendStatus(400)
+  }).then((user) => {
+    if (user.password != password) {
+      console.log("Bad password from user " + username)
       res.sendStatus(400)
-    }
-    else if (result.password != password) {
-      res.sendStatus(400)
-    }
-    else {
+    } else {
       const token = generateAccessToken({
-        "username": result.username,
-        "team": result.team
-    })
+        "username": user.username,
+        "name": user.name,
+        "id": user.id,
+        "team": user.team
+      })
       res.json(token)
+      console.log("Successful login as " + username)
     }
+  }).catch((err) => {
+    console.log(err)
+    res.sendStatus(500)
   })
 })
 
 // Fetch basic data
 
 app.get('/api/home', authenticateToken, (req, res) => {
-  var username = req.user
-  db.collection("users").findOne({username}, function(err, result) {
-    if (err) {
-      res.sendStatus(500)
-    } else {
-      res.json({
-        "name": result.name,
-        "team": result.team,
-        "score": result.score
-      })
-    }
+  var username = req.user.username
+
+  const database = client.db('trivia')
+  const users = database.collection('users')
+
+  users.findOne({username}).then((user) => {
+    res.json({
+      "name": user.name,
+      "team": user.team,
+      "score": user.score
+    })
+  }).catch((err) => {
+    console.log(err)
+    res.status(500)
   })
 })
 
 // Submit answer to a question
+app.post('/api/submit', authenticateToken, (req, res) => {
+  var user = req.user
+
+  const database = client.db('trivia')
+  const answers = database.collection('answers')
+  const questions = database.collection('questions')
+
+  var idx = req.body.answer.indexOf('-')
+  var question_nb = Number.parseInt(req.body.answer.substring(0, idx))
+  var answer = req.body.answer.substring(idx + 1)
+
+  // Check if the answer is correct
+  questions.findOne({"id": question_nb}).then((question) => {
+    if (!question) {
+      res.send({
+        "result": "incorrect",
+        "first": false,
+        "score": 0
+      })
+      return
+    }
+    var correct = question.answer == answer
+
+    // Check for existing answers to the question
+    var query = {
+      "team": user.team,
+      "question": question_nb
+    }
+    answers.findOne(query).then((answer) => {
+      if (!answer) {
+        // No answer yet
+        if(!correct) {
+          res.json({
+            "result": "incorrect",
+            "score": 0
+          })
+        } else {
+          // check if other team answered
+          answers.findOne({"question": question_nb}).then((answer) => {
+            var first = answer == null
+            var score = first ? 150 : 100
+
+            save_answer(user, {
+              "question": question_nb,
+              "user": user.name,
+              "user_id": user.id,
+              "team": user.team,
+              "score": score
+            }).then(() => {
+              res.json({
+                "result": "correct",
+                "first": first,
+                "score": score
+              })
+            })
+          })
+        }
+      } else {
+        res.json({
+          "result": correct ? "correct" : "incorrect",
+          "first": false,
+          "already_answered_by": answer.user,
+          "score": 0
+        })
+      }
+    })
+  })
+})
+
+app.post('/api/answers', authenticateToken, (req, res) => {
+  var user = req.user
+  const database = client.db('trivia')
+  const answers = database.collection('answers')
+  var min = req.body.min
+  var max = req.body.max
+
+  var query = {
+    "team": user.team,
+    "question": {
+      "$gte": min,
+      "$lte": max
+    }
+  }
+  answers.find(query).toArray().then((result) => {
+    res.json(result.map((res) => {
+      return {
+        "question": res.question,
+        "user": res.user,
+        "score": res.score
+      }
+    }))
+  })
+})
 
 // Set the port for the server
 const PORT = process.env.PORT || 3000;
@@ -97,5 +199,24 @@ function authenticateToken(req, res, next) {
     }
     req.user = user
     next()
+  })
+}
+
+function save_answer(user, answer) {
+  // Save answer in DB and update score of user
+  return new Promise((resolve, reject) => {
+    const database = client.db('trivia')
+    const answers = database.collection('answers')
+    const users = database.collection('users')
+  
+    answers.insertOne(answer).then(() => {
+      users.findOne({username: user.username}).then((user) => {
+        users.updateOne({username: user.username}, {
+          "$set": {"score": user.score + answer.score}
+        }).then(() => {
+          resolve()
+        })
+      })
+    })  
   })
 }

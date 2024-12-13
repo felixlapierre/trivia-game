@@ -8,7 +8,7 @@
 
 ## Setup
 
-- Create a file `src/backend/.env` with the secret key for signing JWT tokens
+- Create a file `.env` in the project root with the secret key for signing JWT tokens
 
 ```
 TOKEN_SECRET=<your secret>
