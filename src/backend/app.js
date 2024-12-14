@@ -174,6 +174,71 @@ app.post('/api/answers', authenticateToken, (req, res) => {
   })
 })
 
+app.get("/api/leaderboard", authenticateToken, (req, res) => {
+  const database = client.db('trivia')
+  const answers = database.collection('answers')
+  answers.aggregate([
+    {
+      '$facet': {
+        'teamScores': [
+          {
+            '$group': {
+              '_id': '$team', 
+              'totalScore': {
+                '$sum': '$score'
+              }, 
+              'totalQuestions': {
+                '$sum': 1
+              }
+            }
+          }, {
+            '$sort': {
+              'totalScore': -1
+            }
+          }, {
+            '$project': {
+              '_id': 0, 
+              'team': '$_id', 
+              'totalScore': 1, 
+              'totalQuestions': 1
+            }
+          }
+        ], 
+        'userScores': [
+          {
+            '$group': {
+              '_id': '$user', 
+              'totalScore': {
+                '$sum': '$score'
+              }, 
+              'team': {
+                '$first': '$team'
+              }, 
+              'totalQuestions': {
+                '$sum': 1
+              }
+            }
+          }, {
+            '$sort': {
+              'totalScore': -1
+            }
+          }, {
+            '$project': {
+              '_id': 0, 
+              'user': '$_id', 
+              'totalScore': 1, 
+              'team': 1, 
+              'totalQuestions': 1
+            }
+          }
+        ]
+      }
+    }
+  ]).toArray().then((result) => {
+    res.json(result)
+  })
+})
+
 // Set the port for the server
 const PORT = process.env.PORT || 3000;
 

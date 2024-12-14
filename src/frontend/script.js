@@ -105,6 +105,8 @@ function renderMainPage(data) {
     </div>
     <div id="questions-list" class="mt-5">
     </div>
+    <div id="leaderboard">
+    </div>
     <div>
         <button class="button is-danger mt-5" onclick="logout()">Log Out</button>
     </div>
@@ -116,6 +118,10 @@ function renderMainPage(data) {
     render_section("Movies & TV", 41, 60)
     render_section("History & Geography", 61, 80)
     render_section("Silly Questions", 81, 100)
+
+    if(data.name == "Felix") {
+        render_leaderboard()
+    }
 }
 
 function render_section(category, min, max) {
@@ -183,6 +189,29 @@ function getTableRows(min, max, data) {
         result += row
     }
     return result
+}
+
+function render_leaderboard() {
+    get_leaderboard().then((result) => {
+        console.log(result)
+        var leaderboard_element = document.getElementById("leaderboard")
+        leaderboard_element.innerHTML = `
+            <h1 class="title mt-6" style="text-align:center">Leaderboard</h1>
+            <table class="table is-bordered" style="margin:auto">
+                ${result[0].teamScores.map((team) => {
+                    return `<tr><th style="background-color:${getTeamColor(team.team)};color:white">Team ${team.team}</th><td>${team.totalScore}</td><td>${team.totalQuestions} questions</td></tr>`
+                })}
+            </table>
+            <h2 class="subtitle mt-6" style="text-align:center">Top Players</h2>
+            <table class="table is-bordered" style="margin:auto">
+                <thead><tr><th>Name</th><th>Team</th><th>Score</th><th>Answered</th></tr></thead>
+                ${result[0].userScores.map((user) => {
+                    return `<tr style="background-color:${getTeamColor(user.team)};color:white"><td>${user.user}</td><td>${user.team}</td><td>${user.totalScore}</td><td>${user.totalQuestions} questions</td></tr>`
+                })}
+            </table>
+        `
+    })
+
 }
 
 render()
@@ -256,6 +285,22 @@ function submit_answer(answer) {
     })
 }
 
+function get_leaderboard() {
+    return new Promise((resolve, reject) => {
+        const headers = new Headers()
+        headers.append("authorization", "Bearer " + getToken())
+        const request = new Request("api/leaderboard", {
+            "method": "GET",
+            "headers": headers
+        })
+        fetch(request).then((response) => {
+            response.json().then((body) => {
+                resolve(body)
+            })
+        })
+    })
+}
+
 function setNotification(level, text) {
     var notification = document.getElementById("notification")
     notification.className = `notification is-light ${level}`
@@ -305,8 +350,8 @@ function getToken() {
 function getTeamColor(team) {
     switch(team) {
         case("red"):
-            return "darkred"
+            return "firebrick"
         case("blue"):
-            return "deepskyblue"
+            return "dodgerblue"
     }
 }
