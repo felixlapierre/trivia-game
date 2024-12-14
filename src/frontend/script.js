@@ -1,3 +1,7 @@
+// State
+var lockout_seconds
+var score = 0
+
 // Business Logic
 
 function login() {
@@ -71,6 +75,7 @@ function renderLogin() {
 }
 
 function renderMainPage(data) {
+    score = data.score
     document.getElementById("root").innerHTML = `
     <div class="level is-mobile" id="header" style="background-color:${getTeamColor(data.team)}">
         <div class="level-left">
@@ -79,19 +84,23 @@ function renderMainPage(data) {
             </div>
         </div>
         <div class="level-right">
-            <div class="level-item">
-                ${data.score} points&nbsp
+            <div class="level-item" id="score">
+                ${score} points&nbsp
             </div>
         </div>
     </div>
 
-  <div class="container is-fluid">
-    <div>
+  <div class="container is-fluid mt-4">
+    <div class="submit-container">
       <div class="control">
         <input id="submit-box" class="input submit-box is-large mt-5" type="text" placeholder="Enter your answer">
       </div>
       <div>
-        <input type="submit" class="button is-primary submit-button" onclick="submit()" enterkeyhint="done"></button>
+        <input id="submit-button" type="submit" class="button is-primary submit-button" onclick="submit()" enterkeyhint="done"></button>
+      </div>
+      <div id="notification" class="notification is-light" hidden>
+        <button class="delete" onclick="closeNotification()"></button>
+        <p id="notification-text"></p>
       </div>
     </div>
     <div id="questions-list" class="mt-5">
@@ -220,16 +229,43 @@ function submit_answer(answer) {
         fetch(request).then((response) => {
             response.json().then((body) => {
                 if (body.already_answered_by != null) {
-                    alert(`The question was already answered for your team by ${body.already_answered_by}, but your answer was ${body.result}`)
+                    setNotification("is-warning", `The question was already answered for your team by ${body.already_answered_by}, but your answer was ${body.result}`)
                 } else if (body.result == "correct") {
-                    alert(`Your answer was correct! +${body.score}pts` + (body.first ? " (You were first to answer!)" : ""))
-                    render()
+                    setNotification("is-success", `Your answer was correct! +${body.score}pts` + (body.first ? "\nYou were the first team to answer!" : ""))
+                    score += body.score
+                    document.getElementById("score").innerHTML = `${score} points&nbsp`
                 } else {
-                    alert(`Your answer was incorrect :(`)
+                    var submitButton = document.getElementById("submit-button")
+                    submitButton.disabled = true
+                    lockout_seconds = 15
+                    submitButton.value = `Submit (Locked for ${lockout_seconds}s)`
+
+                    var interval = setInterval(() => {
+                        lockout_seconds -= 1
+                        submitButton.value = `Submit (Locked for ${lockout_seconds}s)`
+                    }, 1000)
+                    setTimeout(() => {
+                        submitButton.disabled = false
+                        submitButton.value = `Submit`
+                        clearInterval(interval)
+                    }, 15000)
+                    setNotification("is-danger", `Your answer was incorrect :(\nYou'll have to wait 15 seconds before you can submit again`)
                 }
             })
         })
     })
+}
+
+function setNotification(level, text) {
+    var notification = document.getElementById("notification")
+    notification.className = `notification is-light ${level}`
+    document.getElementById("notification-text").innerText = text
+    notification.hidden = false
+}
+
+function closeNotification() {
+    var notification = document.getElementById("notification")
+    notification.hidden = true
 }
 
 function get_answers(min, max) {
