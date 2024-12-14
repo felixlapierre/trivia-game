@@ -40,7 +40,11 @@ app.post('/api/login', (req, res) => {
     console.log("User not found for username " + username)
     res.sendStatus(400)
   }).then((user) => {
-    if (user.password != password) {
+    if (user == null) {
+      console.log("User not found: " + username)
+      res.sendStatus(400)
+    }
+    else if (user.password != password) {
       console.log("Bad password from user " + username)
       res.sendStatus(400)
     } else {

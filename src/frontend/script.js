@@ -6,7 +6,9 @@ var score = 0
 
 function login() {
     var username = document.getElementById("input-username").value;
-    var password = document.getElementById("input-password").value
+    var password = document.getElementById("input-password").value;
+    username = username.toLowerCase()
+    password = password.toLowerCase()
     console.log("Login as " + username)
     const headers = new Headers()
     headers.append("content-type", "application/json")
@@ -38,6 +40,8 @@ function logout() {
 
 function submit() {
     var answer = document.getElementById("submit-box").value
+    answer = answer.toLowerCase()
+    answer = answer.replace(/\s/g, '-')
     // Validate the answer
     console.log(answer)
     if (!/\d+(-\w+)+/.test(answer)) {
@@ -113,11 +117,17 @@ function renderMainPage(data) {
   </div>
     `
 
-    render_section("General Knowledge", 1, 20)
-    render_section("Science", 21, 40)
-    render_section("Movies & TV", 41, 60)
-    render_section("History & Geography", 61, 80)
-    render_section("Silly Questions", 81, 100)
+    render_section("General Knowledge", 1, 10)
+    render_section("Life Sciences", 11, 30)
+    render_section("Unalive Sciences", 31, 50)
+    render_section("Movies", 51, 70)
+    render_section("TV Shows", 71, 90)
+    render_section("History & Geography", 91, 120)
+    render_section("Games", 121, 130)
+    render_section("Felix's Fun Category", 131, 140)
+    render_section("Music", 141, 160)
+    render_section("Book Club", 161, 180)
+    render_section("Miscellaneous", 181, 200)
 
     if(data.name == "Felix") {
         render_leaderboard()
