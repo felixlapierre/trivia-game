@@ -367,10 +367,16 @@ function getToken() {
 }
 
 function getTeamColor(team) {
-    switch(team) {
+    switch(team.toLowerCase()) {
         case("red"):
             return "firebrick"
         case("blue"):
             return "dodgerblue"
+        case("green"):
+            return "darkgreen"
+        case("purple"):
+            return "indigo"
+        case("yellow"):
+            return "gold"
     }
 }
