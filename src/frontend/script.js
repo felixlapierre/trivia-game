@@ -117,17 +117,18 @@ function renderMainPage(data) {
   </div>
     `
 
-    render_section("General Knowledge", 1, 10)
-    render_section("Life Sciences", 11, 30)
-    render_section("Unalive Sciences", 31, 50)
-    render_section("Movies", 51, 70)
-    render_section("TV Shows", 71, 90)
-    render_section("History & Geography", 91, 120)
-    render_section("Games", 121, 130)
-    render_section("Felix's Fun Category", 131, 140)
-    render_section("Music", 141, 160)
-    render_section("Book Club", 161, 180)
-    render_section("Miscellaneous", 181, 200)
+    render_section("General Knowledge", 1, 8)
+    render_section("Life Sciences", 9, 24)
+    render_section("Unalive Sciences", 25, 32)
+    render_section("Movies", 33, 45)
+    render_section("TV Shows", 46, 59)
+    render_section("History & Geography", 60, 73)
+    render_section("Animals", 74, 78)
+    render_section("Games", 79, 84)
+    render_section("Felix's Fun Category", 85, 89)
+    render_section("Music", 90, 94)
+    render_section("Book Club", 95, 110)
+    render_section("Food", 111, 116)
 
     if(data.name == "Felix") {
         render_leaderboard()
@@ -209,14 +210,16 @@ function render_leaderboard() {
             <h1 class="title mt-6" style="text-align:center">Leaderboard</h1>
             <table class="table is-bordered" style="margin:auto">
                 ${result[0].teamScores.map((team) => {
-                    return `<tr><th style="background-color:${getTeamColor(team.team)};color:white">Team ${team.team}</th><td>${team.totalScore}</td><td>${team.totalQuestions} questions</td></tr>`
+                    var firsts = (team.totalScore - team.totalQuestions * 100 ) / 50
+                    return `<tr><th style="background-color:${getTeamColor(team.team)};color:white">Team ${team.team}</th><td>${team.totalScore}</td><td>${team.totalQuestions} questions</td><td>${firsts} firsts</td></tr>`
                 })}
             </table>
             <h2 class="subtitle mt-6" style="text-align:center">Top Players</h2>
             <table class="table is-bordered" style="margin:auto">
-                <thead><tr><th>Name</th><th>Team</th><th>Score</th><th>Answered</th></tr></thead>
+                <thead><tr><th>Name</th><th>Team</th><th>Score</th><th>Answered</th><th>Firsts</th></tr></thead>
                 ${result[0].userScores.map((user) => {
-                    return `<tr style="background-color:${getTeamColor(user.team)};color:white"><td>${user.user}</td><td>${user.team}</td><td>${user.totalScore}</td><td>${user.totalQuestions} questions</td></tr>`
+                    var firsts = (user.totalScore - (user.totalQuestions * 100))/50
+                    return `<tr style="background-color:${getTeamColor(user.team)};color:white"><td>${user.user}</td><td>${user.team}</td><td>${user.totalScore}</td><td>${user.totalQuestions} questions</td><td>${firsts} firsts</td></tr>`
                 })}
             </table>
         `
@@ -266,31 +269,37 @@ function submit_answer(answer) {
             })
         })
         fetch(request).then((response) => {
-            response.json().then((body) => {
-                if (body.already_answered_by != null) {
-                    setNotification("is-warning", `The question was already answered for your team by ${body.already_answered_by}, but your answer was ${body.result}`)
-                } else if (body.result == "correct") {
-                    setNotification("is-success", `Your answer was correct! +${body.score}pts` + (body.first ? "\nYou were the first team to answer!" : ""))
-                    score += body.score
-                    document.getElementById("score").innerHTML = `${score} points&nbsp`
-                } else {
-                    var submitButton = document.getElementById("submit-button")
-                    submitButton.disabled = true
-                    lockout_seconds = 15
-                    submitButton.value = `Submit (Locked for ${lockout_seconds}s)`
-
-                    var interval = setInterval(() => {
-                        lockout_seconds -= 1
+            if (response.status == 429) {
+                setNotification("is-warning", `You are locked out due to sending an incorrect answer. Please wait a few more seconds, then try again`)
+            } else if(response.status == 400) {
+                setNotification("is-warning", `Question number does not correspond to an existing question`)
+            } else {
+                response.json().then((body) => {
+                    if (body.already_answered_by != null) {
+                        setNotification("is-warning", `The question was already answered for your team by ${body.already_answered_by}, but your answer was ${body.result}`)
+                    } else if (body.result == "correct") {
+                        setNotification("is-success", `Your answer was correct! +${body.score}pts` + (body.first ? "\nYou were the first team to answer!" : ""))
+                        score += body.score
+                        document.getElementById("score").innerHTML = `${score} points&nbsp`
+                    } else {
+                        var submitButton = document.getElementById("submit-button")
+                        submitButton.disabled = true
+                        lockout_seconds = 15
                         submitButton.value = `Submit (Locked for ${lockout_seconds}s)`
-                    }, 1000)
-                    setTimeout(() => {
-                        submitButton.disabled = false
-                        submitButton.value = `Submit`
-                        clearInterval(interval)
-                    }, 15000)
-                    setNotification("is-danger", `Your answer was incorrect :(\nYou'll have to wait 15 seconds before you can submit again`)
-                }
-            })
+    
+                        var interval = setInterval(() => {
+                            lockout_seconds -= 1
+                            submitButton.value = `Submit (Locked for ${lockout_seconds}s)`
+                        }, 1000)
+                        setTimeout(() => {
+                            submitButton.disabled = false
+                            submitButton.value = `Submit`
+                            clearInterval(interval)
+                        }, 15000)
+                        setNotification("is-danger", `Your answer was incorrect :(\nYou'll have to wait 15 seconds before you can submit again`)
+                    }
+                })
+            }
         })
     })
 }
