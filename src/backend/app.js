@@ -79,78 +79,93 @@ app.get('/api/home', authenticateToken, (req, res) => {
     })
   }).catch((err) => {
     console.log(err)
-    res.status(500)
+    res.sendStatus(500)
   })
 })
 
 // Submit answer to a question
-app.post('/api/submit', authenticateToken, (req, res) => {
+app.post('/api/submit', authenticateToken, async (req, res) => {
   var user = req.user
+  var username = user.username
 
   const database = client.db('trivia')
   const answers = database.collection('answers')
   const questions = database.collection('questions')
+  const users = database.collection('users')
 
   var idx = req.body.answer.indexOf('-')
   var question_nb = Number.parseInt(req.body.answer.substring(0, idx))
-  var answer = req.body.answer.substring(idx + 1)
+  var answer_text = req.body.answer.substring(idx + 1)
+
+  // Check if the user is locked out
+  var user = await users.findOne({username})
+
+  if (user.lockout > Date.now()) {
+    console.log(`[User=${username}] Submitted answer while locked out`)
+    res.sendStatus(429)
+    return
+  }
 
   // Check if the answer is correct
-  questions.findOne({"id": question_nb}).then((question) => {
-    if (!question) {
-      res.send({
+  var question = await questions.findOne({"id": question_nb})
+
+  if (!question) {
+    console.log(`[User=${username}] Submitted answer to non-existent question nb ${question_nb}`)
+    res.sendStatus(400)
+    return
+  }
+  var correct = question.answer == answer_text
+
+  // Check for existing answers to the question
+  var query = {
+    "team": user.team,
+    "question": question_nb
+  }
+  var answer = await answers.findOne(query)
+
+  if (!answer) {
+    // No answer yet
+    if(!correct) {
+      await users.updateOne({username}, {"$set": {"lockout": Date.now() + 15 * 1000}})
+      console.log(`[User=${username}] Submitted incorrect answer to question ${question_nb}: ${answer_text}`)
+      res.json({
         "result": "incorrect",
-        "first": false,
         "score": 0
       })
-      return
-    }
-    var correct = question.answer == answer
+    } else {
+      // check if other team answered
+      var other_team_answer = await answers.findOne({"question": question_nb})
+      var first = other_team_answer == null
+      var score = first ? 150 : 100
 
-    // Check for existing answers to the question
-    var query = {
-      "team": user.team,
-      "question": question_nb
-    }
-    answers.findOne(query).then((answer) => {
-      if (!answer) {
-        // No answer yet
-        if(!correct) {
-          res.json({
-            "result": "incorrect",
-            "score": 0
-          })
-        } else {
-          // check if other team answered
-          answers.findOne({"question": question_nb}).then((answer) => {
-            var first = answer == null
-            var score = first ? 150 : 100
+      console.log(`[User=${username}] Submitted correct answer for question ${question_nb}: ${answer_text} [score=${score}]`)
 
-            save_answer(user, {
-              "question": question_nb,
-              "user": user.name,
-              "user_id": user.id,
-              "team": user.team,
-              "score": score
-            }).then(() => {
-              res.json({
-                "result": "correct",
-                "first": first,
-                "score": score
-              })
-            })
-          })
-        }
-      } else {
-        res.json({
-          "result": correct ? "correct" : "incorrect",
-          "first": false,
-          "already_answered_by": answer.user,
-          "score": 0
-        })
-      }
+      await save_answer(user, {
+        "question": question_nb,
+        "user": user.name,
+        "user_id": user.id,
+        "team": user.team,
+        "score": score
+      })
+
+      res.json({
+        "result": "correct",
+        "first": first,
+        "score": score
+      })
+    }
+  } else {
+    if (!correct) {
+      await users.updateOne({username}, {"$set": {"lockout": Date.now() + 15 * 1000}})
+    }
+    console.log(`[User=${username}] Submitted repeat answer for question ${question_nb}: ${answer_text}. Answer is ${correct ? "correct" : "incorrect"}`)
+    res.json({
+      "result": correct ? "correct" : "incorrect",
+      "first": false,
+      "already_answered_by": answer.user,
+      "score": 0
     })
-  })
+  }
 })
 
 app.post('/api/answers', authenticateToken, (req, res) => {
