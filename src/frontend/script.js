@@ -125,7 +125,7 @@ function renderMainPage(data) {
     render_section("History & Geography", 60, 73)
     render_section("Animals", 74, 78)
     render_section("Games", 79, 84)
-    render_section("Felix's Fun Category", 85, 89)
+    render_section("Felix Fun Category", 85, 89)
     render_section("Music", 90, 94)
     render_section("Book Club", 95, 110)
     render_section("Food", 111, 116)
